@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { motion, AnimatePresence } from 'motion/react';
-import { Home, Search, MessageCircle, User, Heart, MessageSquare, Share2, Music2, Sparkles, Upload, Volume2, VolumeX } from 'lucide-react';
+import { Home, Search, MessageCircle, User, Heart, MessageSquare, Share2, Music2, Sparkles, Upload, Volume2, VolumeX, Play, Pause } from 'lucide-react';
 import { AppView, Video, Conversation, Message, Profile } from './types.ts';
 import { supabase } from './lib/supabase';
 
@@ -747,6 +747,8 @@ function VideoPlayer({ video }: { video: Video; key?: React.Key }) {
   const [isMuted, setIsMuted] = useState(true);
   const [showMuteIndicator, setShowMuteIndicator] = useState(false);
   const [isActive, setIsActive] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
+  const [showPlayPauseIndicator, setShowPlayPauseIndicator] = useState<'play' | 'pause' | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -773,6 +775,7 @@ function VideoPlayer({ video }: { video: Video; key?: React.Key }) {
 
   useEffect(() => {
     if (isActive) {
+      setIsPaused(false); // Reset pause state when scrolling in
       videoRef.current?.play().catch(() => {});
       bgVideoRef.current?.play().catch(() => {});
     } else {
@@ -787,6 +790,25 @@ function VideoPlayer({ video }: { video: Video; key?: React.Key }) {
     setIsMuted(!isMuted);
     setShowMuteIndicator(true);
     setTimeout(() => setShowMuteIndicator(false), 800);
+  };
+
+  const togglePlayPause = () => {
+    if (isImage) return;
+    if (!videoRef.current) return;
+
+    if (isPaused) {
+      videoRef.current.play().catch(() => {});
+      bgVideoRef.current?.play().catch(() => {});
+      setIsPaused(false);
+      setShowPlayPauseIndicator('play');
+      setTimeout(() => setShowPlayPauseIndicator(null), 600);
+    } else {
+      videoRef.current.pause();
+      bgVideoRef.current?.pause();
+      setIsPaused(true);
+      setShowPlayPauseIndicator('pause');
+      setTimeout(() => setShowPlayPauseIndicator(null), 600);
+    }
   };
 
   const isImage = video.url.match(/\.(jpeg|jpg|gif|png|webp)(\?.*)?$/i);
@@ -821,7 +843,7 @@ function VideoPlayer({ video }: { video: Video; key?: React.Key }) {
           loop
           playsInline
           muted={isMuted}
-          onClick={toggleMute}
+          onClick={togglePlayPause}
         />
       )}
       
@@ -842,56 +864,82 @@ function VideoPlayer({ video }: { video: Video; key?: React.Key }) {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Floating Play/Pause Indicator (Instagram Reels Style) */}
+      <AnimatePresence>
+        {showPlayPauseIndicator && (
+          <motion.div
+            initial={{ scale: 0.5, opacity: 0 }}
+            animate={{ scale: 1.2, opacity: 1 }}
+            exit={{ scale: 1.8, opacity: 0 }}
+            transition={{ duration: 0.4, ease: 'easeOut' }}
+            className="absolute z-30 w-16 h-16 bg-black/50 backdrop-blur-md rounded-full flex items-center justify-center pointer-events-none"
+          >
+            {showPlayPauseIndicator === 'play' ? (
+              <Play className="w-8 h-8 text-white fill-white ml-1" />
+            ) : (
+              <Pause className="w-8 h-8 text-white fill-white" />
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Persistent Pause Overlay Icon */}
+      {isPaused && !showPlayPauseIndicator && (
+        <div className="absolute z-20 w-16 h-16 bg-black/40 backdrop-blur-sm rounded-full flex items-center justify-center pointer-events-none animate-pulse">
+          <Play className="w-8 h-8 text-white fill-white ml-1" />
+        </div>
+      )}
       
       {/* Overlay Content */}
       <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/90 w-full h-full pointer-events-none z-10" />
 
-      {/* Interactions Sidebar - Bento Style */}
-      <div className="absolute right-4 bottom-6 md:right-6 md:bottom-10 flex flex-col items-center gap-4 md:gap-6 z-20">
-        <div className="group flex flex-col items-center gap-1 cursor-pointer" onClick={() => setLiked(!liked)}>
+      {/* Interactions Sidebar - Sleek Instagram Style (Transparent, Drop Shadow, Smaller) */}
+      <div className="absolute right-4 bottom-6 md:right-6 md:bottom-10 flex flex-col items-center gap-5 md:gap-7 z-20">
+        <div className="group flex flex-col items-center gap-0.5 cursor-pointer" onClick={() => setLiked(!liked)}>
           <motion.div
             animate={{ scale: liked ? [1, 1.2, 1] : 1 }}
-            className={`w-11 h-11 md:w-14 md:h-14 bg-white/10 backdrop-blur-xl flex items-center justify-center rounded-2xl border border-white/20 transition-all hover:bg-white/20 ${liked ? 'bg-red-500/20 border-red-500/40' : ''}`}
+            className="w-9 h-9 md:w-11 md:h-11 flex items-center justify-center transition-all active:scale-90 hover:scale-110 drop-shadow-[0_2px_8px_rgba(0,0,0,0.6)]"
           >
-            <Heart className={`w-5 h-5 md:w-7 md:h-7 transition-colors ${liked ? 'fill-red-500 text-red-500' : 'text-white'}`} />
+            <Heart className={`w-7 h-7 md:w-9 md:h-9 transition-colors ${liked ? 'fill-red-500 text-red-500' : 'text-white'}`} />
           </motion.div>
-          <span className="text-[10px] font-black tracking-widest mt-1 opacity-60 uppercase">{video.likes + (liked ? 1 : 0)}</span>
+          <span className="text-[11px] font-black tracking-wider text-white drop-shadow-[0_1.5px_4px_rgba(0,0,0,0.7)] mt-0.5">{video.likes + (liked ? 1 : 0)}</span>
         </div>
 
-        <div className="group flex flex-col items-center gap-1 cursor-pointer">
-          <div className="w-11 h-11 md:w-14 md:h-14 bg-white/10 backdrop-blur-xl flex items-center justify-center rounded-2xl border border-white/20 transition-all hover:bg-white/20 active:scale-90">
-            <MessageSquare className="w-5 h-5 md:w-7 md:h-7 text-white" />
+        <div className="group flex flex-col items-center gap-0.5 cursor-pointer">
+          <div className="w-9 h-9 md:w-11 md:h-11 flex items-center justify-center transition-all active:scale-90 hover:scale-110 drop-shadow-[0_2px_8px_rgba(0,0,0,0.6)]">
+            <MessageSquare className="w-7 h-7 md:w-9 md:h-9 text-white" />
           </div>
-          <span className="text-[10px] font-black tracking-widest mt-1 opacity-60 uppercase">{video.comments}</span>
+          <span className="text-[11px] font-black tracking-wider text-white drop-shadow-[0_1.5px_4px_rgba(0,0,0,0.7)] mt-0.5">{video.comments}</span>
         </div>
 
         {/* Volume/Audio Toggle Button (Only for Videos) */}
         {!isImage && (
-          <div className="group flex flex-col items-center gap-1 cursor-pointer" onClick={toggleMute}>
-            <div className="w-11 h-11 md:w-14 md:h-14 bg-white/10 backdrop-blur-xl flex items-center justify-center rounded-2xl border border-white/20 transition-all hover:bg-white/20 active:scale-90">
+          <div className="group flex flex-col items-center gap-0.5 cursor-pointer" onClick={toggleMute}>
+            <div className="w-9 h-9 md:w-11 md:h-11 flex items-center justify-center transition-all active:scale-90 hover:scale-110 drop-shadow-[0_2px_8px_rgba(0,0,0,0.6)]">
               {isMuted ? (
-                <VolumeX className="w-5 h-5 md:w-7 md:h-7 text-white" />
+                <VolumeX className="w-7 h-7 md:w-9 md:h-9 text-white" />
               ) : (
-                <Volume2 className="w-5 h-5 md:w-7 md:h-7 text-coral" />
+                <Volume2 className="w-7 h-7 md:w-9 md:h-9 text-white" />
               )}
             </div>
-            <span className="text-[10px] font-black tracking-widest mt-1 opacity-60 uppercase">
+            <span className="text-[11px] font-black tracking-wider text-white drop-shadow-[0_1.5px_4px_rgba(0,0,0,0.7)] mt-0.5">
               {isMuted ? 'Mute' : 'Audio'}
             </span>
           </div>
         )}
 
-        <div className="group flex flex-col items-center gap-1 cursor-pointer">
-          <div className="w-11 h-11 md:w-14 md:h-14 bg-white/10 backdrop-blur-xl flex items-center justify-center rounded-2xl border border-white/20 transition-all hover:bg-white/20 active:scale-90">
-            <Share2 className="w-5 h-5 md:w-7 md:h-7 text-white" />
+        <div className="group flex flex-col items-center gap-0.5 cursor-pointer">
+          <div className="w-9 h-9 md:w-11 md:h-11 flex items-center justify-center transition-all active:scale-90 hover:scale-110 drop-shadow-[0_2px_8px_rgba(0,0,0,0.6)]">
+            <Share2 className="w-7 h-7 md:w-9 md:h-9 text-white" />
           </div>
-          <span className="text-[10px] font-black tracking-widest mt-1 opacity-60 uppercase">Share</span>
+          <span className="text-[11px] font-black tracking-wider text-white drop-shadow-[0_1.5px_4px_rgba(0,0,0,0.7)] mt-0.5">Share</span>
         </div>
 
         <motion.div
           animate={{ rotate: 360 }}
           transition={{ duration: 4, repeat: Infinity, ease: 'linear' }}
-          className="w-9 h-9 md:w-12 md:h-12 rounded-full p-2 bg-gradient-to-tr from-indigo-vibe to-purple-600 border border-white/30 shadow-lg shadow-indigo-vibe/20"
+          className="w-8 h-8 md:w-10 md:h-10 rounded-full p-1.5 bg-black/40 border border-white/20 shadow-lg shadow-black/50 overflow-hidden flex items-center justify-center drop-shadow-[0_2px_6px_rgba(0,0,0,0.6)] mt-1"
         >
           <Music2 className="w-full h-full text-white" />
         </motion.div>
