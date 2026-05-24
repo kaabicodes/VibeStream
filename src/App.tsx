@@ -6,8 +6,8 @@ import { AppView, Video, Conversation, Message, Profile } from './types.ts';
 import { supabase } from './lib/supabase';
 
 const GUEST_PROFILE: Profile = {
-  name: 'Guest Vibe',
-  handle: '@guest_vibe',
+  name: 'KaaBI',
+  handle: '@KaaBI',
   avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=guest',
   bio: 'Login to reveal your personalized bio, story highlights, and creator stats.',
   posts: 0,
@@ -746,6 +746,42 @@ function VideoPlayer({ video }: { video: Video; key?: React.Key }) {
   const [liked, setLiked] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
   const [showMuteIndicator, setShowMuteIndicator] = useState(false);
+  const [isActive, setIsActive] = useState(false);
+
+  const containerRef = useRef<HTMLDivElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const bgVideoRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setIsActive(entry.isIntersecting);
+      },
+      {
+        threshold: 0.6, // Trigger play when 60% of the reel is in view
+      }
+    );
+
+    if (containerRef.current) {
+      observer.observe(containerRef.current);
+    }
+
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (isActive) {
+      videoRef.current?.play().catch(() => {});
+      bgVideoRef.current?.play().catch(() => {});
+    } else {
+      videoRef.current?.pause();
+      bgVideoRef.current?.pause();
+      if (videoRef.current) videoRef.current.currentTime = 0;
+      if (bgVideoRef.current) bgVideoRef.current.currentTime = 0;
+    }
+  }, [isActive]);
 
   const toggleMute = () => {
     setIsMuted(!isMuted);
@@ -756,12 +792,22 @@ function VideoPlayer({ video }: { video: Video; key?: React.Key }) {
   const isImage = video.url.match(/\.(jpeg|jpg|gif|png|webp)(\?.*)?$/i);
 
   return (
-    <div className="h-full w-full snap-start relative bg-black overflow-hidden flex items-center justify-center">
+    <div
+      ref={containerRef}
+      className="h-full w-full snap-start relative bg-black overflow-hidden flex items-center justify-center"
+    >
       {/* Blurred Background Layer for Option B (Landscape Support) */}
       {isImage ? (
         <img src={video.url} className="absolute inset-0 h-full w-full object-cover blur-3xl opacity-40 scale-110" alt="" />
       ) : (
-        <video src={video.url} className="absolute inset-0 h-full w-full object-cover blur-3xl opacity-40 scale-110" loop playsInline autoPlay muted />
+        <video
+          ref={bgVideoRef}
+          src={video.url}
+          className="absolute inset-0 h-full w-full object-cover blur-3xl opacity-40 scale-110"
+          loop
+          playsInline
+          muted
+        />
       )}
 
       {/* Foreground Content */}
@@ -769,11 +815,11 @@ function VideoPlayer({ video }: { video: Video; key?: React.Key }) {
         <img src={video.url} className="relative z-0 h-full w-full object-contain" alt="Vibe" />
       ) : (
         <video
+          ref={videoRef}
           src={video.url}
           className="relative z-0 h-full w-full object-contain cursor-pointer"
           loop
           playsInline
-          autoPlay
           muted={isMuted}
           onClick={toggleMute}
         />
