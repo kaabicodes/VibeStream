@@ -443,7 +443,7 @@ export default function App() {
     if (authenticated && profile.id && currentView === 'chat') {
       // Fetch messages for inbox
       supabase.from('messages')
-        .select('*, sender:users!messages_sender_id_fkey(id, username, avatar_url), receiver:users!messages_receiver_id_fkey(id, username, avatar_url)')
+        .select('*, sender:users!sender_id(id, username, avatar_url), receiver:users!receiver_id(id, username, avatar_url)')
         .or(`sender_id.eq.${profile.id},receiver_id.eq.${profile.id}`)
         .order('created_at', { ascending: false })
         .then(({ data, error }) => {
