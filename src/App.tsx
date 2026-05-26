@@ -103,11 +103,13 @@ const FILTERS = [
   const fetchComments = async () => {
     const { data, error } = await supabase
       .from('comments')
-      .select('*, user:users(username, avatar_url)')
+      .select('*, users(username, avatar_url)')
       .eq('video_id', video.id)
       .order('created_at', { ascending: false });
     if (!error && data) {
-      setComments(data as any);
+      setComments(data.map((c: any) => ({ ...c, user: c.users })) as any);
+    } else if (error) {
+      console.error("Comment fetch error:", error);
     }
     setLoading(false);
   };
@@ -248,11 +250,70 @@ function SearchModal({
   );
 }
 
+function ShareModal({ 
+  video, 
+  onClose,
+  profile,
+  conversations
+}: { 
+  video: Video; 
+  onClose: () => void;
+  profile: Profile;
+  conversations: any[];
+}) {
+  const handleSend = async (user: any) => {
+    const finalMessage = `Check out this Vibe! 🎥\n${video.url}`;
+    
+    // Save to DB
+    await supabase.from('messages').insert({
+      sender_id: profile.id,
+      receiver_id: user.id,
+      text: finalMessage
+    });
+    
+    alert(`Sent to @${user.name || user.username}!`);
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 z-[100] flex flex-col justify-end">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm cursor-pointer" onClick={onClose} />
+      <motion.div 
+        initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+        className="relative bg-bg-card border-t border-gray-800 rounded-t-3xl h-[60vh] flex flex-col shadow-2xl"
+      >
+        <div className="flex justify-center p-3 cursor-pointer" onClick={onClose}>
+          <div className="w-12 h-1.5 bg-gray-700 rounded-full" />
+        </div>
+        <div className="text-center pb-4 border-b border-gray-800 font-black text-lg tracking-tight">
+          Send to...
+        </div>
+        <div className="flex-1 overflow-y-auto p-4 space-y-4 no-scrollbar">
+          {conversations.length === 0 ? (
+            <div className="text-center text-gray-500 font-bold mt-10">No friends found. Start a chat first!</div>
+          ) : (
+            conversations.map(c => (
+              <div key={c.user.id} onClick={() => handleSend(c.user)} className="flex items-center justify-between p-3 bg-bg-alt rounded-2xl cursor-pointer hover:border-coral border border-transparent transition-colors">
+                <div className="flex items-center gap-3">
+                  <img src={c.user.avatar} className="w-10 h-10 rounded-full object-cover border border-gray-800" />
+                  <div className="font-bold">@{c.user.name}</div>
+                </div>
+                <button className="bg-coral text-white font-bold text-xs px-4 py-2 rounded-full active:scale-95 transition-transform">Send</button>
+              </div>
+            ))
+          )}
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
 export default function App() {
   const [currentView, setCurrentView] = useState<AppView>('home');
   const [videos, setVideos] = useState<Video[]>(MOCK_VIDEOS);
   const [activeChat, setActiveChat] = useState<{room: string, user: any} | null>(null);
   const [activeCommentVideo, setActiveCommentVideo] = useState<Video | null>(null);
+  const [activeShareVideo, setActiveShareVideo] = useState<Video | null>(null);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [conversations, setConversations] = useState<any[]>([]);
   const [isLoginOpen, setIsLoginOpen] = useState(false);
@@ -463,7 +524,7 @@ export default function App() {
             >
               <div className="h-full overflow-y-scroll snap-y-mandatory no-scrollbar">
                 {videos.map((video) => (
-                  <VideoPlayer key={video.id} video={video} onOpenComments={setActiveCommentVideo} />
+                  <VideoPlayer key={video.id} video={video} onOpenComments={setActiveCommentVideo} onShare={setActiveShareVideo} />
                 ))}
               </div>
             </motion.div>
@@ -604,6 +665,18 @@ export default function App() {
             onClose={() => setActiveCommentVideo(null)}
             profile={profile}
             authenticated={authenticated}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Share Modal */}
+      <AnimatePresence>
+        {activeShareVideo && (
+          <ShareModal 
+            video={activeShareVideo}
+            onClose={() => setActiveShareVideo(null)}
+            profile={profile}
+            conversations={conversations}
           />
         )}
       </AnimatePresence>
@@ -1096,7 +1169,7 @@ function NavButton({ icon: Icon, active, onClick }: { icon: any, label: string, 
   );
 }
 
-function VideoPlayer({ video, onOpenComments }: { video: Video; onOpenComments?: (video: Video) => void; key?: React.Key }) {
+function VideoPlayer({ video, onOpenComments, onShare }: { video: Video; onOpenComments?: (video: Video) => void; onShare?: (video: Video) => void; key?: React.Key }) {
   const [liked, setLiked] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
   const [showMuteIndicator, setShowMuteIndicator] = useState(false);
@@ -1294,7 +1367,7 @@ function VideoPlayer({ video, onOpenComments }: { video: Video; onOpenComments?:
           </div>
         )}
 
-        <div className="group flex flex-col items-center gap-0.5 cursor-pointer">
+        <div className="group flex flex-col items-center gap-0.5 cursor-pointer" onClick={() => onShare?.(video)}>
           <div className="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center transition-all active:scale-90 hover:scale-110 drop-shadow-[0_2px_8px_rgba(0,0,0,0.6)]">
             <Share2 className="w-6 h-6 md:w-7.5 md:h-7.5 text-white" />
           </div>
